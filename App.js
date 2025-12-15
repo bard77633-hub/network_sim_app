@@ -8,7 +8,7 @@ import { CheckCircle, ArrowRight, AlertCircle, RefreshCw, LayoutTemplate, X, Hom
 
 const html = htm.bind(React.createElement);
 
-// --- Mission Definitions (Moved inside component or wrapped to access logic, but here we pass state) ---
+// --- Mission Definitions ---
 
 const MISSION_SETS = [
   {
@@ -33,7 +33,7 @@ const MISSION_SETS = [
           id: 2,
           title: "スイッチを使った接続",
           description: "「スイッチ」を追加し、パソコンとルーターをスイッチ経由で接続してください。",
-          hint: "構成: [パソコン] ↔ [スイッチ] ↔ [ルーター]。PCとルーターを直接つながないように注意してください。もし直結してしまった場合は、インスペクタ(右パネル)の接続リストから削除できます。",
+          hint: "構成: [パソコン] ↔ [スイッチ] ↔ [ルーター]。PCとルーターを直接つながないように注意してください。間違ってつないだ場合は、右パネルのリストからゴミ箱アイコンで削除できます。",
           explanation: "通常、PCはルーターに直結せず「スイッチ」につなぎます。スイッチはLAN内のポートを増やし、効率的にデータを転送する役割を持ちます。",
           check: (state) => {
               const switchDevice = state.devices.find(d => d.type === 'SWITCH');
@@ -44,6 +44,7 @@ const MISSION_SETS = [
               if(!pc || !router) return false;
 
               // 厳格なチェック: PCとルーターが直接つながっていないこと
+              // ※ ユーザーが削除した後、この関数は最新のstate.connectionsを見るため正しく判定される
               const directConnection = isConnected(state.connections, pc.id, router.id);
               if (directConnection) return false;
 
@@ -72,7 +73,7 @@ const MISSION_SETS = [
           id: 4,
           title: "通信テスト (Ping)",
           description: "パソコンからルーターへ実際に「Ping」を実行し、通信を成功させてください。",
-          hint: "設定だけでは不十分です。PCを選択→Pingテスト欄にルーターのIPを入力→「実行」を押し、青いパケットが往復するのを確認してください。",
+          hint: "設定だけでは不十分です。PCを選択→Pingテスト欄にルーターのIPを入力→「実行」を押し、青いパケットが往復して「応答あり」とログに出るのを確認してください。",
           explanation: "Ping（ピング）は疎通確認の基本コマンドです。設定が正しくても、ファイアウォールや物理的な断線があれば通りません。「実際に通ったこと」を確認するのがネットワークエンジニアの仕事です。",
           check: (state) => {
               // 実際にPingが成功した履歴があるかチェック
@@ -170,9 +171,6 @@ const MISSION_SETS = [
               if (pcs.length < 2 || printers.length < 1 || switches.length < 1) return false;
               
               const sw = switches[0];
-              // 厳格なチェック: PCやプリンタ同士が直接つながっていないか
-              // 全てのデバイスについて、接続先がスイッチのみであることを確認するのは複雑だが、
-              // 少なくとも全ターゲットがスイッチにつながっていることは必須
               const allConnected = [...pcs, ...printers].every(dev => isConnected(state.connections, dev.id, sw.id));
               
               return allConnected;
@@ -211,8 +209,6 @@ const MISSION_SETS = [
 
               if (!router || !onu || !sw) return false;
 
-              // 厳格なトポロジーチェック
-              // スイッチとONUが直結されていないか
               if (isConnected(state.connections, sw.id, onu.id)) return false;
 
               const swToRouter = isConnected(state.connections, sw.id, router.id);
@@ -269,7 +265,6 @@ const MISSION_SETS = [
               
               if (!pc || !server || !sw) return false;
 
-              // 直結禁止チェック
               if (isConnected(state.connections, pc.id, server.id)) return false;
 
               const validIPs = isValidIP(pc.ip) && isValidIP(server.ip) && isInSameSubnet(pc.ip, server.ip);
@@ -560,13 +555,23 @@ const App = () => {
                              log(`応答あり: ${target ? target.ip : 'unknown'} (bytes=32 time=10ms)`);
                              
                              // Update Mission Flags: Successful Ping
-                             setMissionFlags(prev => ({ ...prev, pingSuccess: true }));
+                             setMissionFlags(prev => {
+                                 if (prev.pingSuccess) return prev;
+                                 return { ...prev, pingSuccess: true };
+                             });
+                             
                              if (isEncrypted) {
-                                 setMissionFlags(prev => ({ ...prev, encryptedSuccess: true }));
+                                 setMissionFlags(prev => {
+                                     if (prev.encryptedSuccess) return prev;
+                                     return { ...prev, encryptedSuccess: true };
+                                 });
                              }
                         } else if (p.type === 'KEY_EXCHANGE') {
                              // Key Exchange successful
-                             setMissionFlags(prev => ({ ...prev, encryptedSuccess: true }));
+                             setMissionFlags(prev => {
+                                 if (prev.encryptedSuccess) return prev;
+                                 return { ...prev, encryptedSuccess: true };
+                             });
                         }
                     }
                     return; 
