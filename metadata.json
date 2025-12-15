@@ -1,0 +1,5 @@
+{
+  "name": "ネットワーク構築シミュレーター",
+  "description": "An interactive network construction simulator for learning TCP/IP basics, LAN configuration, and encryption concepts.",
+  "requestFramePermissions": []
+}
